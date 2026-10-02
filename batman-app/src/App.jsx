@@ -5,7 +5,7 @@ const CITIES = {
   'Madrid': {
     villain: 'Harley Quinn',
     hideout: 'Fnac Callao',
-    m2Answers: ['psiquiatra', 'joker', 'rosa', 'azul', 'béisbol'],
+    m2Answers: ['psicóloga', 'joker', 'rosa', 'azul', 'béisbol'],
     m2Text: [
       "La paciente trabajó como ", " en Arkham Asylum. Estableció una relación con el paciente conocido como ",
       ". Pelo rubio con puntas teñidas de ", " y ", ". Arma frecuente: bate de ", "."
@@ -73,13 +73,17 @@ const Icon = ({ name, className }) => {
         <rect x="3" y="11" width="18" height="11" rx="2" ry="2" fill="none" stroke="currentColor" strokeWidth="2"/>
         <path d="M7 11V7a5 5 0 0 1 10 0v4" fill="none" stroke="currentColor" strokeWidth="2"/>
       </g>
-    )
+    ),
+    home: <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>,
+    x: <path d="M18 6L6 18M6 6l12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>,
+    edit: <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>,
+    board: <rect x="3" y="3" width="18" height="18" rx="2" ry="2" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
   };
   return <svg viewBox="0 0 24 24" className={className} xmlns="http://www.w3.org/2000/svg">{icons[name]}</svg>;
 };
 
 const MessageBox = ({ title, message, onClose, type = 'info' }) => (
-  <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+  <div className="absolute inset-0 z-100 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
     <div className={`w-full max-w-sm rounded-lg p-6 border-2 shadow-2xl ${type === 'error' ? 'border-red-500 bg-red-900/20' : 'border-[#FEE202] bg-[#242424]'}`}>
       <h3 className={`text-xl font-bold mb-2 ${type === 'error' ? 'text-red-500' : 'text-[#FEE202]'}`}>{title}</h3>
       <p className="text-gray-200 mb-6 font-mono text-sm">{message}</p>
@@ -91,13 +95,23 @@ const MessageBox = ({ title, message, onClose, type = 'info' }) => (
 );
 
 export default function BatmanApp() {
-  const [view, setView] = useState('login'); // login, dashboard, m1, m2, m3, m4
+  const [view, setView] = useState('login'); // login, dashboard, m1, m2, m3, m4, evidences
   const [user, setUser] = useState(null);
   const [progress, setProgress] = useState(0); 
   const [score, setScore] = useState(0);
+  const [scoreLog, setScoreLog] = useState([]); 
+  const [scoreModal, setScoreModal] = useState(null); 
   const [msg, setMsg] = useState(null);
+  const [showProfileEdit, setShowProfileEdit] = useState(false);
 
-  // Styling injection for required fonts
+  // Base scores para la simulación del ranking colectivo
+  const baseCityScores = {
+    'Madrid': 12500,
+    'Barcelona': 11800,
+    'Bilbao': 10500,
+    'Sevilla': 11200
+  };
+
   const fontStyles = `
     @import url('https://fonts.googleapis.com/css2?family=Anonymous+Pro&family=Rubik:wght@400;600;800&display=swap');
     .font-sans { font-family: 'Rubik', sans-serif; }
@@ -127,6 +141,12 @@ export default function BatmanApp() {
   const completeMission = (missionIndex, points) => {
     setScore(s => s + points);
     setProgress(p => Math.max(p, missionIndex));
+    setScoreLog(log => [...log, { 
+      mission: missionIndex, 
+      title: ['Alerta en la red', 'Informes Incompletos', 'Sin Escapatoria', 'Caza Rastros', 'La Guarida'][missionIndex-1],
+      points: points, 
+      badge: BADGES[missionIndex-1] 
+    }]);
     setView('dashboard');
     setMsg({ 
       title: 'Misión Completada', 
@@ -163,21 +183,7 @@ export default function BatmanApp() {
 
   const renderDashboard = () => (
     <div className="flex flex-col h-full bg-[#272E3C]">
-      <header className="bg-[#242424] p-4 border-b border-[#FEE202] flex items-center justify-between shadow-lg z-10">
-        <div className="flex items-center gap-3">
-          <Icon name="batman" className="w-8 h-8 text-[#FEE202]" />
-          <div>
-            <h2 className="font-bold text-[#FEE202] leading-tight text-sm uppercase">{user.alias}</h2>
-            <p className="text-xs text-gray-400">Sector: {user.city}</p>
-          </div>
-        </div>
-        <div className="text-right">
-          <p className="text-xs text-gray-400">Puntuación</p>
-          <p className="font-bold text-[#36D837] font-terminal">{score}</p>
-        </div>
-      </header>
-
-      <div className="flex-1 overflow-y-auto p-6 space-y-6">
+      <div className="flex-1 overflow-y-auto p-6 space-y-6 pb-24">
         <div className="text-center mb-4">
           <h3 className="text-xl font-bold mb-2">Estado de Investigación</h3>
           <p className="text-sm text-gray-300">Los fugitivos de Arkham están ocultos. Completa las misiones para localizarlos.</p>
@@ -233,21 +239,53 @@ export default function BatmanApp() {
     </div>
   );
 
+  const renderEvidences = () => (
+    <div className="flex flex-col h-full bg-[#1a1a1a] p-4 pb-24 overflow-y-auto">
+      <h2 className="text-xl font-bold text-[#FEE202] mb-4 uppercase border-b border-[#FEE202] pb-2">Tablón de Evidencias</h2>
+      <div className="space-y-4">
+         <div className="bg-[#242424] p-4 rounded border border-gray-600 relative overflow-hidden">
+            <div className="absolute top-2 right-2 text-xs text-gray-500 font-mono">ID: 07-991-28</div>
+            <h3 className="font-bold text-white mb-2">Fuga de Arkham</h3>
+            <p className="text-sm text-gray-400 font-mono">El protocolo de emergencia nivel 3 ha sido activado. 4 internos de máxima peligrosidad han escapado coordinadamente.</p>
+         </div>
+         {progress >= 1 && (
+           <div className="bg-[#242424] p-4 rounded border border-[#36D837] relative overflow-hidden">
+              <h3 className="font-bold text-[#36D837] mb-2 uppercase">Servidores Recuperados</h3>
+              <p className="text-sm text-gray-300 font-mono">La red de Oráculo ha sido estabilizada. El ataque fue un intento de distracción.</p>
+           </div>
+         )}
+         {progress >= 2 && (
+           <div className="bg-[#242424] p-4 rounded border border-[#FEE202] relative overflow-hidden">
+              <h3 className="font-bold text-[#FEE202] mb-2 uppercase">Expediente Restaurado</h3>
+              <p className="text-sm text-gray-300 font-mono">Se han recuperado datos vitales del fugitivo asignado al sector {user.city}. Se sospecha complicidad interna en Arkham.</p>
+           </div>
+         )}
+         {progress < 2 && (
+           <div className="bg-[#242424] p-4 rounded border border-dashed border-gray-700 flex items-center justify-center opacity-50 h-24">
+              <span className="font-mono text-sm text-gray-500">EVIDENCIA BLOQUEADA</span>
+           </div>
+         )}
+      </div>
+    </div>
+  );
+
   const Mission1 = () => {
-    const [timeLeft, setTimeLeft] = useState(300);
-    const [inputVal, setInputVal] = useState('');
+    const isCompleted = progress >= 1;
+    const [timeLeft, setTimeLeft] = useState(isCompleted ? 0 : 300);
+    const [inputVal, setInputVal] = useState(isCompleted ? 'BATMAN CAERA' : '');
     const codeHint = "2-1-20-13-1-14 3-1-5-18-1"; // BATMAN CAERA
 
     useEffect(() => {
+      if (isCompleted) return;
       const timer = setInterval(() => setTimeLeft(t => Math.max(0, t - 1)), 1000);
       return () => clearInterval(timer);
-    }, []);
+    }, [isCompleted]);
 
     const handleSubmit = (e) => {
       e.preventDefault();
       const cleaned = inputVal.toUpperCase().trim().replace(/\s+/g, ' ');
       if (cleaned === 'BATMAN CAERA' || cleaned === 'BATMAN CAERÁ') {
-        completeMission(1, 100 + timeLeft); // Bonus points for time
+        completeMission(1, 100 + timeLeft); 
       } else {
         setMsg({ title: 'Error', message: 'Clave incorrecta. El cifrado continúa.', type: 'error'});
         setInputVal('');
@@ -255,7 +293,7 @@ export default function BatmanApp() {
     };
 
     return (
-      <div className="flex flex-col h-full bg-[#1C1B20] text-[#36D837] font-terminal p-4 bg-scanlines relative">
+      <div className="flex flex-col flex-1 bg-[#1C1B20] text-[#36D837] font-terminal p-4 bg-scanlines pb-20 relative">
         <div className="border-b border-[#36D837]/30 pb-2 mb-4 flex justify-between items-center">
           <h2 className="uppercase">Alerta de Seguridad</h2>
           <span className="text-red-500 font-bold bg-red-500/20 px-2 py-1 rounded animate-pulse">
@@ -280,15 +318,22 @@ export default function BatmanApp() {
           <div className="flex gap-2">
             <input 
               type="text" 
-              autoFocus
+              autoFocus={!isCompleted}
               value={inputVal}
+              disabled={isCompleted}
               onChange={(e) => setInputVal(e.target.value)}
-              className="flex-1 bg-black border border-[#36D837] text-[#36D837] p-3 focus:outline-none focus:ring-1 focus:ring-[#36D837] uppercase font-terminal"
+              className="flex-1 w-full bg-black border border-[#36D837] text-[#36D837] p-3 focus:outline-none focus:ring-1 focus:ring-[#36D837] uppercase font-terminal disabled:opacity-70 disabled:cursor-not-allowed"
               placeholder="Escribe aquí..."
             />
-            <button type="submit" className="bg-[#36D837] text-black px-6 font-bold hover:bg-green-400 transition-colors">
-              ENTRAR
-            </button>
+            {isCompleted ? (
+              <div className="bg-[#36D837]/20 text-[#36D837] border border-[#36D837] px-4 flex items-center font-bold">
+                COMPLETADA
+              </div>
+            ) : (
+              <button type="submit" className="bg-[#36D837] text-black px-6 font-bold hover:bg-green-400 transition-colors">
+                ENTRAR
+              </button>
+            )}
           </div>
         </form>
       </div>
@@ -297,24 +342,95 @@ export default function BatmanApp() {
 
   const Mission2 = () => {
     const cityData = CITIES[user.city];
-    const [inputs, setInputs] = useState(['', '', '', '', '']);
+    const isCompleted = progress >= 2;
     
-    const checkAnswers = () => {
-      let correct = 0;
-      inputs.forEach((val, i) => {
-        if(val.toLowerCase().trim() === cityData.m2Answers[i].toLowerCase()) correct++;
-      });
+    const initialInputs = isCompleted 
+      ? (user.city === 'Madrid' ? ['psicóloga', 'joker', 'rosa', 'azul', 'béisbol'] : cityData.m2Answers)
+      : ['', '', '', '', ''];
+    const initialStatus = isCompleted ? ['correct', 'correct', 'correct', 'correct', 'correct'] : [null, null, null, null, null];
+
+    const [inputs, setInputs] = useState(initialInputs);
+    const [inputStatus, setInputStatus] = useState(initialStatus);
+    
+    const handleInputChange = (index, value) => {
+      if (isCompleted) return;
+      const newInputs = [...inputs];
+      newInputs[index] = value;
+      setInputs(newInputs);
       
-      if(correct >= 4) {
-        completeMission(2, correct * 50);
-      } else {
-        setMsg({ title: 'Datos Insuficientes', message: `Has acertado ${correct}/5. Necesitas al menos 4 aciertos para restaurar el archivo.`, type: 'error'});
+      if (inputStatus[index] !== null) {
+        const newStatus = [...inputStatus];
+        newStatus[index] = null;
+        setInputStatus(newStatus);
       }
     };
 
+    const checkAnswers = () => {
+      let correctCount = 0;
+      const newStatus = [...inputStatus];
+      
+      if (user.city === 'Madrid') {
+        if (['psicóloga', 'psicologa'].includes(inputs[0].toLowerCase().trim())) {
+          newStatus[0] = 'correct'; correctCount++;
+        } else newStatus[0] = 'incorrect';
+        
+        if (inputs[1].toLowerCase().trim() === 'joker') {
+          newStatus[1] = 'correct'; correctCount++;
+        } else newStatus[1] = 'incorrect';
+        
+        const validColors = ['rosa', 'azul'];
+        let usedColors = [];
+        
+        const val2 = inputs[2].toLowerCase().trim();
+        if (validColors.includes(val2)) {
+          newStatus[2] = 'correct';
+          usedColors.push(val2);
+          correctCount++;
+        } else newStatus[2] = 'incorrect';
+        
+        const val3 = inputs[3].toLowerCase().trim();
+        if (validColors.includes(val3) && !usedColors.includes(val3)) {
+          newStatus[3] = 'correct';
+          correctCount++;
+        } else newStatus[3] = 'incorrect';
+
+        if (['béisbol', 'beisbol'].includes(inputs[4].toLowerCase().trim())) {
+          newStatus[4] = 'correct'; correctCount++;
+        } else newStatus[4] = 'incorrect';
+
+      } else {
+        inputs.forEach((val, i) => {
+          if(val.toLowerCase().trim() === cityData.m2Answers[i].toLowerCase()) {
+            newStatus[i] = 'correct';
+            correctCount++;
+          } else {
+            newStatus[i] = 'incorrect';
+          }
+        });
+      }
+      
+      setInputStatus(newStatus);
+
+      if(correctCount >= 5) {
+        completeMission(2, correctCount * 50);
+      } else {
+        setMsg({ title: 'Datos Insuficientes', message: `Has acertado ${correctCount}/5. Corrige las cajas en rojo.`, type: 'error'});
+      }
+    };
+
+    const getInputClass = (index, widthClass) => {
+      let baseClass = `inline-block border-2 rounded px-2 py-1 mx-1 mb-1 text-center font-bold focus:outline-none transition-colors ${widthClass}`;
+      if (inputStatus[index] === 'correct') {
+        return `${baseClass} border-green-500 bg-green-100 text-green-900`;
+      } else if (inputStatus[index] === 'incorrect') {
+        return `${baseClass} border-red-500 bg-red-100 text-red-900`;
+      }
+      return `${baseClass} border-gray-400 bg-gray-50 text-gray-900 focus:border-[#FEE202]`;
+    };
+
     return (
-      <div className="flex flex-col h-full bg-[#E5D7B6] text-gray-800 p-4">
-        <header className="mb-4 border-b-2 border-gray-800 pb-2 flex justify-between items-center">
+      <div className="flex flex-col flex-1 bg-[#E5D7B6] text-gray-800 p-4 pb-24">
+        <header className="mb-4 border-b-2 border-gray-800 pb-2 flex justify-between items-center shrink-0">
           <div>
             <h2 className="font-bold uppercase tracking-wider text-xl">DOCUMENTO CLASIFICADO</h2>
             <p className="text-xs">ARKHAM ASYLUM - DPTO. DE SEGURIDAD</p>
@@ -323,7 +439,7 @@ export default function BatmanApp() {
         </header>
 
         <div className="bg-white p-6 shadow-md rounded border border-gray-300 relative flex-1 overflow-y-auto">
-          <div className="absolute top-4 right-4 border-4 border-red-600 text-red-600 font-bold uppercase tracking-widest p-1 transform rotate-12 opacity-80 text-lg">
+          <div className="absolute top-4 right-4 border-4 border-red-600 text-red-600 font-bold uppercase tracking-widest p-1 transform rotate-12 opacity-80 text-lg pointer-events-none">
             CONFIDENTIAL
           </div>
           
@@ -331,45 +447,47 @@ export default function BatmanApp() {
             {cityData.villain}
           </h3>
           
-          <div className="space-y-4 text-sm leading-relaxed font-mono">
-            <p className="bg-yellow-200/50 p-2 text-xs text-gray-600 mb-4 border border-yellow-400">
-              [NOTA DE ORÁCULO]: El ciberataque corrompió este expediente. Rellena los huecos con la información correcta basándote en lo que sabes del sujeto.
+          <div className="text-sm font-mono leading-relaxed text-justify">
+            <p className="bg-yellow-200/50 p-2 text-xs text-gray-600 mb-6 border border-yellow-400">
+              [NOTA DE ORÁCULO]: El ciberataque corrompió este expediente. Rellena los huecos con la información correcta.
             </p>
             
-            <p>
+            <p className="mb-4 inline-block">
               {cityData.m2Text[0]}
-              <input type="text" value={inputs[0]} onChange={e => {let a=[...inputs]; a[0]=e.target.value; setInputs(a)}} className="border-b border-black bg-transparent w-24 text-center focus:outline-none text-red-700 font-bold px-1" />
+              <input type="text" value={inputs[0]} disabled={isCompleted} onChange={e => handleInputChange(0, e.target.value)} className={getInputClass(0, "w-28")} />
               {cityData.m2Text[1]}
-              <input type="text" value={inputs[1]} onChange={e => {let a=[...inputs]; a[1]=e.target.value; setInputs(a)}} className="border-b border-black bg-transparent w-24 text-center focus:outline-none text-red-700 font-bold px-1" />
+              <input type="text" value={inputs[1]} disabled={isCompleted} onChange={e => handleInputChange(1, e.target.value)} className={getInputClass(1, "w-28")} />
               {cityData.m2Text[2]}
-            </p>
-            <p>
+              <input type="text" value={inputs[2]} disabled={isCompleted} onChange={e => handleInputChange(2, e.target.value)} className={getInputClass(2, "w-20")} />
               {cityData.m2Text[3]}
-              <input type="text" value={inputs[2]} onChange={e => {let a=[...inputs]; a[2]=e.target.value; setInputs(a)}} className="border-b border-black bg-transparent w-20 text-center focus:outline-none text-red-700 font-bold px-1" />
+              <input type="text" value={inputs[3]} disabled={isCompleted} onChange={e => handleInputChange(3, e.target.value)} className={getInputClass(3, "w-20")} />
               {cityData.m2Text[4]}
-              <input type="text" value={inputs[3]} onChange={e => {let a=[...inputs]; a[3]=e.target.value; setInputs(a)}} className="border-b border-black bg-transparent w-24 text-center focus:outline-none text-red-700 font-bold px-1" />
+              <input type="text" value={inputs[4]} disabled={isCompleted} onChange={e => handleInputChange(4, e.target.value)} className={getInputClass(4, "w-28")} />
               {cityData.m2Text[5]}
-            </p>
-            <p>
-              {cityData.m2Text[6]}
-              <input type="text" value={inputs[4]} onChange={e => {let a=[...inputs]; a[4]=e.target.value; setInputs(a)}} className="border-b border-black bg-transparent w-28 text-center focus:outline-none text-red-700 font-bold px-1" />
-              {cityData.m2Text[7]}
             </p>
           </div>
         </div>
         
-        <button onClick={checkAnswers} className="mt-4 w-full bg-[#242424] text-[#FEE202] py-4 rounded font-bold uppercase tracking-wider shadow-lg hover:bg-black transition-colors">
-          Validar Expediente
-        </button>
+        {isCompleted ? (
+          <div className="mt-4 w-full bg-[#36D837]/20 text-[#36D837] border-2 border-[#36D837] py-4 rounded font-bold uppercase tracking-wider text-center shrink-0">
+            Misión Completada
+          </div>
+        ) : (
+          <button onClick={checkAnswers} className="mt-4 w-full bg-[#242424] text-[#FEE202] py-4 rounded font-bold uppercase tracking-wider shadow-lg hover:bg-black transition-colors shrink-0">
+            Validar Expediente
+          </button>
+        )}
       </div>
     );
   };
 
   const Mission3 = () => {
-    const [stage, setStage] = useState(1);
-    const [timeLeft, setTimeLeft] = useState(30);
+    const isCompleted = progress >= 3;
+    const [stage, setStage] = useState(isCompleted ? 3 : 1);
+    const [timeLeft, setTimeLeft] = useState(isCompleted ? 0 : 30);
 
     useEffect(() => {
+      if (isCompleted) return;
       if(timeLeft <= 0) {
         setMsg({ title: 'El fugitivo escapó', message: 'No fuiste lo suficientemente rápido. Volviendo a intentar...', type: 'error'});
         setStage(1);
@@ -377,7 +495,7 @@ export default function BatmanApp() {
       }
       const timer = setInterval(() => setTimeLeft(t => t - 1), 1000);
       return () => clearInterval(timer);
-    }, [timeLeft]);
+    }, [timeLeft, isCompleted]);
 
     const handleFound = () => {
       if(stage < 3) {
@@ -388,7 +506,6 @@ export default function BatmanApp() {
       }
     };
 
-    // Positions for the 3 stages
     const positions = [
       { top: '20%', left: '70%' },
       { top: '65%', left: '15%' },
@@ -396,7 +513,15 @@ export default function BatmanApp() {
     ];
 
     return (
-      <div className="flex flex-col h-full bg-black text-white relative">
+      <div className="flex flex-col flex-1 bg-black text-white relative pb-20">
+        {isCompleted ? (
+          <div className="absolute inset-0 z-40 bg-[#242424] flex flex-col items-center justify-center p-6 text-center">
+            <Icon name="check" className="w-24 h-24 text-[#36D837] mb-6" />
+            <h2 className="text-3xl font-bold text-[#36D837] mb-2 uppercase tracking-widest">Objetivo Localizado</h2>
+            <p className="text-gray-300 font-mono text-sm">Transmisiones interceptadas con éxito. Las autoridades están en camino.</p>
+          </div>
+        ) : null}
+
         <div className="absolute top-4 left-4 z-10 bg-black/60 p-2 border border-red-500 rounded text-red-500 font-mono text-sm animate-pulse flex items-center gap-2">
           <div className="w-2 h-2 bg-red-500 rounded-full"></div>
           REC {timeLeft}s
@@ -408,11 +533,8 @@ export default function BatmanApp() {
 
         <div className="flex-1 relative overflow-hidden bg-[#242424]">
           <div className="absolute inset-0 opacity-20 bg-[url('https://placehold.co/800x800/242424/4F5C7C?text=CCTV+Feed+Noise')] bg-cover mix-blend-overlay pointer-events-none"></div>
-          
-          {/* Simulated Crowd / Clutter */}
           <div className="absolute inset-0" style={{ background: 'repeating-linear-gradient(45deg, #272E3C 25%, transparent 25%, transparent 75%, #272E3C 75%, #272E3C), repeating-linear-gradient(45deg, #272E3C 25%, #242424 25%, #242424 75%, #272E3C 75%, #272E3C)', backgroundPosition: '0 0, 10px 10px', backgroundSize: '20px 20px' }}></div>
           
-          {/* Target */}
           <button 
             onClick={handleFound}
             className="absolute w-8 h-8 flex items-center justify-center bg-[#FEE202] text-black rounded-full shadow-[0_0_15px_rgba(254,226,2,1)] z-20 hover:scale-110 transition-transform"
@@ -420,26 +542,23 @@ export default function BatmanApp() {
           >
              <Icon name="batman" className="w-5 h-5" />
           </button>
-
-          {/* Scanner Line UI */}
           <div className="absolute top-0 left-0 w-full h-1 bg-green-500/50 shadow-[0_0_10px_#36D837] animate-[scan_3s_ease-in-out_infinite] pointer-events-none"></div>
         </div>
 
         <div className="bg-[#1C1B20] p-4 text-center font-mono text-xs text-gray-400">
           Oráculo: "Localiza la firma térmica del villano en el área (Círculo amarillo). Sé rápido."
         </div>
-
-        <style dangerouslySetInnerHTML={{__html: `
-          @keyframes scan { 0% { top: 0%; } 50% { top: 100%; } 100% { top: 0%; } }
-        `}} />
+        <style dangerouslySetInnerHTML={{__html: `@keyframes scan { 0% { top: 0%; } 50% { top: 100%; } 100% { top: 0%; } }`}} />
       </div>
     );
   };
 
   const Mission4 = () => {
-    const [found, setFound] = useState([false, false]);
+    const isCompleted = progress >= 4;
+    const [found, setFound] = useState(isCompleted ? [true, true] : [false, false]);
 
     const handleFind = (index) => {
+      if (isCompleted) return;
       const newFound = [...found];
       newFound[index] = true;
       setFound(newFound);
@@ -450,9 +569,16 @@ export default function BatmanApp() {
     };
 
     return (
-      <div className="flex flex-col h-full bg-[#272E3C] relative overflow-hidden">
-        {/* AR UI Overlay */}
-        <div className="absolute inset-0 border-[12px] border-[#FEE202]/30 pointer-events-none z-20"></div>
+      <div className="flex flex-col flex-1 bg-[#272E3C] relative overflow-hidden pb-20">
+        {isCompleted ? (
+          <div className="absolute inset-0 z-40 bg-[#242424] flex flex-col items-center justify-center p-6 text-center">
+             <Icon name="check" className="w-24 h-24 text-[#36D837] mb-6" />
+             <h2 className="text-3xl font-bold text-[#36D837] mb-2 uppercase tracking-widest">Anomalías Registradas</h2>
+             <p className="text-gray-300 font-mono text-sm">Has encontrado la ubicación de la guarida. Prepárate para el Batman Day.</p>
+          </div>
+        ) : null}
+
+        <div className="absolute inset-0 border-12 border-[#FEE202]/30 pointer-events-none z-20"></div>
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 border-2 border-[#36D837]/50 rounded-full flex items-center justify-center pointer-events-none z-20">
           <div className="w-1 h-4 bg-[#36D837]/50 absolute top-0"></div>
           <div className="w-1 h-4 bg-[#36D837]/50 absolute bottom-0"></div>
@@ -465,17 +591,13 @@ export default function BatmanApp() {
           <span className="font-mono text-sm">Anomalías: {found.filter(Boolean).length}/2</span>
         </header>
 
-        {/* Simulated Camera Background */}
         <div className="absolute inset-0 bg-gray-800 bg-[url('https://placehold.co/600x800/1a1a1a/333333?text=Urban+Environment')] bg-cover bg-center">
-           {/* Anomaly 1 */}
            <button 
              onClick={() => handleFind(0)}
              className={`absolute top-[30%] left-[20%] w-16 h-16 rounded-full border-2 transition-all duration-500 z-10 ${found[0] ? 'border-[#36D837] bg-[#36D837]/40 scale-100' : 'border-[#FEE202] bg-[#FEE202]/10 scale-110 animate-pulse'}`}
            >
              {found[0] && <Icon name="check" className="w-8 h-8 text-white mx-auto" />}
            </button>
-
-           {/* Anomaly 2 */}
            <button 
              onClick={() => handleFind(1)}
              className={`absolute bottom-[25%] right-[15%] w-12 h-12 rounded-full border-2 transition-all duration-500 z-10 ${found[1] ? 'border-[#36D837] bg-[#36D837]/40 scale-100' : 'border-[#FEE202] bg-[#FEE202]/10 scale-110 animate-pulse delay-300'}`}
@@ -484,8 +606,8 @@ export default function BatmanApp() {
            </button>
         </div>
 
-        <div className="absolute bottom-6 w-full px-6 z-30">
-           <div className="bg-black/80 p-4 border border-[#FEE202] rounded text-sm text-center">
+        <div className="absolute bottom-24 w-full px-6 z-30">
+           <div className="bg-black/80 p-4 border border-[#FEE202] rounded text-sm text-center text-white">
              Busca rastros en el mobiliario urbano de tu sector. Pulsa sobre las distorsiones visuales.
            </div>
         </div>
@@ -511,9 +633,46 @@ export default function BatmanApp() {
         .clip-hexagon { clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%); }
       `}} />
 
-      <main className="w-full max-w-md h-[100dvh] bg-[#242424] text-white relative shadow-2xl flex flex-col overflow-hidden">
+      <main className="w-full max-w-md h-dvh bg-[#242424] text-white relative shadow-2xl flex flex-col overflow-hidden">
         
-        {/* Dynamic View Rendering */}
+        {/* App Header (Only visible if logged in and not loading) */}
+        {user && view !== 'loading' && (
+          <header className="bg-[#242424] p-4 border-b border-[#FEE202] flex items-center justify-between shadow-lg z-10 shrink-0">
+            <button 
+              onClick={() => setShowProfileEdit(true)}
+              className="flex items-center gap-3 text-left hover:opacity-80 transition-opacity relative group"
+            >
+              <Icon name="batman" className="w-8 h-8 text-[#FEE202]" />
+              <div>
+                <div className="flex items-center gap-1">
+                  <h2 className="font-bold text-[#FEE202] leading-tight text-sm uppercase">{user.alias}</h2>
+                  <Icon name="edit" className="w-3 h-3 text-gray-500 group-hover:text-white transition-colors" />
+                </div>
+                <p className="text-xs text-gray-400">Sector: {user.city}</p>
+              </div>
+            </button>
+            <div className="flex flex-col gap-1 items-end min-w-30">
+              <button 
+                onClick={() => setScoreModal('individual')}
+                className="flex justify-between items-center w-full bg-[#36D837]/10 hover:bg-[#36D837]/20 border border-[#36D837]/30 rounded px-2 py-1 transition-colors group"
+              >
+                <span className="text-[10px] text-gray-400 uppercase tracking-wider group-hover:text-gray-200">Personal</span>
+                <span className="font-bold text-[#36D837] font-terminal text-sm ml-2">{score}</span>
+              </button>
+              <button 
+                onClick={() => setScoreModal('collective')}
+                className="flex justify-between items-center w-full bg-[#FEE202]/10 hover:bg-[#FEE202]/20 border border-[#FEE202]/30 rounded px-2 py-1 transition-colors group"
+              >
+                <span className="text-[10px] text-gray-400 uppercase tracking-wider group-hover:text-gray-200 truncate max-w-15 text-left">{user.city}</span>
+                <span className="font-bold text-[#FEE202] font-terminal text-sm ml-2">
+                  {(baseCityScores[user.city] + score).toLocaleString()}
+                </span>
+              </button>
+            </div>
+          </header>
+        )}
+
+        {/* Views */}
         {view === 'login' && renderLogin()}
         {view === 'loading' && renderLoading()}
         {view === 'dashboard' && renderDashboard()}
@@ -521,19 +680,149 @@ export default function BatmanApp() {
         {view === 'm2' && <Mission2 />}
         {view === 'm3' && <Mission3 />}
         {view === 'm4' && <Mission4 />}
+        {view === 'evidences' && renderEvidences()}
 
-        {/* Global Message Modal */}
+        {/* Global Navigation Footer */}
+        {user && view !== 'loading' && (
+          <div className="absolute bottom-0 w-full bg-[#1C1B20] border-t-2 border-[#FEE202] p-2 flex justify-around items-center z-50 shrink-0">
+            <button 
+              onClick={() => setView('dashboard')}
+              className={`flex flex-col items-center p-2 rounded transition-colors ${view === 'dashboard' || view.startsWith('m') ? 'text-[#FEE202]' : 'text-gray-500 hover:text-gray-300'}`}
+            >
+              <Icon name="home" className="w-6 h-6 mb-1" />
+              <span className="text-[10px] uppercase font-bold tracking-wider">Misiones</span>
+            </button>
+            <button 
+              onClick={() => setView('evidences')}
+              className={`flex flex-col items-center p-2 rounded transition-colors ${view === 'evidences' ? 'text-[#FEE202]' : 'text-gray-500 hover:text-gray-300'}`}
+            >
+              <Icon name="board" className="w-6 h-6 mb-1" />
+              <span className="text-[10px] uppercase font-bold tracking-wider">Tablón</span>
+            </button>
+          </div>
+        )}
+
+        {/* Score Modals */}
+        {scoreModal === 'individual' && (
+          <div className="absolute inset-0 z-50 bg-[#1C1B20]/95 backdrop-blur flex flex-col p-6 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex justify-between items-center mb-6 border-b border-[#36D837] pb-4">
+              <div>
+                <h2 className="text-2xl font-bold text-[#36D837] uppercase tracking-widest">Desglose Personal</h2>
+                <p className="text-gray-400 font-mono text-sm">Agente: {user.alias}</p>
+              </div>
+              <button onClick={() => setScoreModal(null)} className="text-gray-400 hover:text-white bg-gray-800 p-2 rounded-full">
+                <Icon name="x" className="w-6 h-6" />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto space-y-4">
+              {scoreLog.length === 0 ? (
+                <p className="text-gray-500 font-mono text-center mt-10">No hay registros de puntuación aún.</p>
+              ) : (
+                scoreLog.map((log, i) => (
+                  <div key={i} className="bg-[#242424] border border-gray-700 p-4 rounded flex items-center gap-4">
+                    <div className="w-12 h-12 clip-hexagon flex items-center justify-center bg-gray-800 border-2 border-[#FEE202] text-[#FEE202] shrink-0">
+                      <Icon name={log.badge.icon} className="w-5 h-5" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Misión {log.mission}</p>
+                      <p className="font-bold text-white text-sm leading-tight">{log.title}</p>
+                      <p className="text-xs text-[#FEE202] mt-1">Insignia: {log.badge.name}</p>
+                    </div>
+                    <div className="font-terminal font-bold text-[#36D837] text-lg">
+                      +{log.points}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+            <div className="mt-4 bg-[#36D837]/10 border border-[#36D837] p-4 flex justify-between items-center rounded">
+              <span className="font-bold text-gray-300 uppercase">Puntuación Total</span>
+              <span className="font-terminal text-2xl font-bold text-[#36D837]">{score}</span>
+            </div>
+          </div>
+        )}
+
+        {scoreModal === 'collective' && (() => {
+          const rankings = Object.keys(baseCityScores).map(city => ({
+            city,
+            total: baseCityScores[city] + (user.city === city ? score : 0)
+          })).sort((a, b) => b.total - a.total);
+
+          return (
+            <div className="absolute inset-0 z-50 bg-[#1C1B20]/95 backdrop-blur flex flex-col p-6 animate-in fade-in zoom-in-95 duration-200">
+              <div className="flex justify-between items-center mb-6 border-b border-[#FEE202] pb-4">
+                <div>
+                  <h2 className="text-2xl font-bold text-[#FEE202] uppercase tracking-widest">Ranking Global</h2>
+                  <p className="text-gray-400 font-mono text-sm">Estado de la red</p>
+                </div>
+                <button onClick={() => setScoreModal(null)} className="text-gray-400 hover:text-white bg-gray-800 p-2 rounded-full">
+                  <Icon name="x" className="w-6 h-6" />
+                </button>
+              </div>
+              
+              <div className="flex-1 overflow-y-auto space-y-4">
+                {rankings.map((r, i) => (
+                  <div key={r.city} className={`border p-4 rounded flex items-center gap-4 ${r.city === user.city ? 'bg-[#FEE202]/20 border-[#FEE202]' : 'bg-[#242424] border-gray-700'}`}>
+                    <div className="font-terminal text-2xl font-bold text-gray-500 w-8 text-center">{i + 1}º</div>
+                    <div className="flex-1">
+                      <p className={`font-bold text-lg uppercase tracking-wider ${r.city === user.city ? 'text-[#FEE202]' : 'text-white'}`}>{r.city}</p>
+                    </div>
+                    <div className={`font-terminal font-bold text-xl ${r.city === user.city ? 'text-[#FEE202]' : 'text-gray-400'}`}>
+                      {r.total.toLocaleString()}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-4 text-center p-4 bg-[#242424] border border-[#FEE202] rounded">
+                <p className="text-sm text-gray-300">Compite junto a los Bat-Vigilantes de tu ciudad por el primer puesto. Tu participación es clave.</p>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Profile Edit Modal */}
+        {showProfileEdit && (
+          <div className="absolute inset-0 z-50 bg-[#1C1B20]/95 backdrop-blur flex flex-col items-center justify-center p-6 animate-in fade-in zoom-in-95 duration-200">
+            <div className="w-full max-w-sm bg-[#242424] rounded-lg border border-[#FEE202] p-6 shadow-2xl">
+              <div className="flex justify-between items-center mb-6 border-b border-[#FEE202] pb-4">
+                <h2 className="text-xl font-bold text-[#FEE202] uppercase tracking-widest">Editar Perfil</h2>
+                <button onClick={() => setShowProfileEdit(false)} className="text-gray-400 hover:text-white bg-gray-800 p-2 rounded-full">
+                  <Icon name="x" className="w-5 h-5" />
+                </button>
+              </div>
+              
+              <form onSubmit={(e) => {
+                e.preventDefault();
+                const newAlias = e.target.newAlias.value.trim().toUpperCase();
+                if (newAlias) {
+                  setUser({ ...user, alias: newAlias });
+                  setShowProfileEdit(false);
+                  setMsg({ title: 'Perfil Actualizado', message: `Alias actualizado a ${newAlias}.`, type: 'info' });
+                }
+              }} className="space-y-4">
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1">NUEVO ALIAS</label>
+                  <input 
+                    name="newAlias" 
+                    type="text" 
+                    defaultValue={user.alias}
+                    autoFocus
+                    required 
+                    className="w-full bg-[#272E3C] border border-gray-600 rounded p-3 text-white focus:outline-none focus:border-[#FEE202] uppercase" 
+                  />
+                </div>
+                <button type="submit" className="w-full bg-[#FEE202] text-[#242424] font-bold uppercase tracking-wider py-3 rounded shadow-[0_0_15px_rgba(254,226,2,0.3)] hover:bg-yellow-400 transition-colors mt-2">
+                  Guardar Cambios
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Global Message Box */}
         {msg && <MessageBox {...msg} onClose={() => setMsg(null)} />}
 
-        {/* Navigation back to dashboard if in a mission */}
-        {['m1', 'm2', 'm3', 'm4'].includes(view) && (
-          <button 
-            onClick={() => setView('dashboard')}
-            className="absolute top-4 left-4 z-40 bg-black/50 p-2 rounded-full border border-gray-600 hover:bg-black"
-          >
-            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
-          </button>
-        )}
       </main>
     </div>
   );
